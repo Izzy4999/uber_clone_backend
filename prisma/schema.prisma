@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model users {
+  id         Int      @id @default(autoincrement())
+  first_name String?  @db.VarChar(100)
+  last_name  String?  @db.VarChar(100)
+  email      String   @unique @db.VarChar(100)
+  clerk_id   String   @unique @db.VarChar(50)
+  phone      String?
+  drivers    drivers?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model drivers {
+  id                Int      @id @default(autoincrement())
+  user_id           Int      @unique
+  User              users    @relation(fields: [user_id], references: [id])
+  profile_image_url String?
+  car_image_url     String?
+  car_seats         Int
+  plate_number      String
+  car_model         String?
+  car_year          Int?
+  car_make          String?
+  car_color         String?
+  rating            Decimal? @db.Decimal(3, 2)
+  approved          Approval @default(pending)
+  rides             rides[]
+  reason            String?
+  // @@check(rating >= 0 && rating <= 5)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model rides {
+  ride_id               Int       @id @default(autoincrement())
+  origin_address        String    @db.VarChar(255)
+  destination_address   String    @db.VarChar(255)
+  origin_latitude       Decimal   @db.Decimal(9, 6)
+  origin_longitude      Decimal   @db.Decimal(9, 6)
+  destination_latitude  Decimal   @db.Decimal(9, 6)
+  destination_longitude Decimal   @db.Decimal(9, 6)
+  ride_time             Int
+  fare_price            Decimal   @db.Decimal(10, 2)
+  payment_status        String    @db.VarChar(20)
+  driver_id             Int?
+  user_id               String    @db.VarChar(100)
+  created_at            DateTime? @default(now()) @db.Timestamp(6)
+  drivers               drivers?  @relation(fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+enum Approval {
+  pending
+  approved
+  denied
+}
