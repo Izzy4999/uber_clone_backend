@@ -163,6 +163,11 @@ export const driverApproval = CatchAsyncError(
         return next(new ErrorHandlers("Unauthorized", 401));
       }
 
+      const user = await clerkClient.users.getUser(auth.userId!);
+      if (user?.publicMetadata?.role !== "admin") {
+        return next(new ErrorHandlers("Unauthorized", 403));
+      }
+      
       const { driver_id, status, reason } = req.body;
       if (!driver_id || !status) {
         return next(new ErrorHandlers("Missing required fields", 400));
@@ -183,9 +188,10 @@ export const driverApproval = CatchAsyncError(
         return next(new ErrorHandlers("Driver not found", 404));
       }
 
-      await clerkClient.users.updateUser(driver.User.clerk_id, {
+      await clerkClient.users.updateUser(driver!.User.clerk_id, {
         publicMetadata: {
           driverStatus: status,
+          role: "driver",
         },
       });
 
