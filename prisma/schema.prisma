@@ -15,6 +15,7 @@ model users {
   clerk_id   String   @unique @db.VarChar(50)
   phone      String?
   drivers    drivers?
+  rides      rides[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -32,7 +33,7 @@ model drivers {
   car_color         String?
   rating            Decimal? @db.Decimal(3, 2)
   approved          Approval @default(pending)
-  rides             rides[]
+  rides             rides[]  @relation("drivers")
   reason            String?
   // @@check(rating >= 0 && rating <= 5)
 }
@@ -46,17 +47,26 @@ model rides {
   origin_longitude      Decimal   @db.Decimal(9, 6)
   destination_latitude  Decimal   @db.Decimal(9, 6)
   destination_longitude Decimal   @db.Decimal(9, 6)
-  ride_time             Int
-  fare_price            Decimal   @db.Decimal(10, 2)
-  payment_status        String    @db.VarChar(20)
+  ride_time             Int?
+  fare_price            Decimal?  @db.Decimal(10, 2)
+  payment_status        String?   @db.VarChar(20)
   driver_id             Int?
-  user_id               String    @db.VarChar(100)
+  user_id               String?   @db.VarChar(100)
+  user                  users?    @relation(fields: [user_id], references: [clerk_id], onDelete: NoAction, onUpdate: NoAction)
   created_at            DateTime? @default(now()) @db.Timestamp(6)
-  drivers               drivers?  @relation(fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  drivers               drivers?  @relation("drivers", fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ride_status           Status    @default(pending)
 }
 
 enum Approval {
   pending
   approved
   denied
+}
+
+enum Status {
+  pending
+  accepted
+  completed
+  canceled
 }

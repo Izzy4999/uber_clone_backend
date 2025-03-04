@@ -7,6 +7,7 @@ import userRouter from "@/routes/user.route";
 import rideRouter from "@/routes/ride.route";
 import http from "http";
 import startSocket from "@/sockets/io";
+import os from "os";
 
 const app = express();
 const server = http.createServer(app);
@@ -44,5 +45,21 @@ app.use(ErrorMiddleWare);
 // Start the server
 const PORT = env.PORT || 10000;
 server.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(
+    `Server is running on http://localhost:${PORT} or http://${getLocalIP()}:6000`
+  );
 });
+
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (const iface of Object.values(interfaces)) {
+    if (iface) {
+      for (const info of iface) {
+        if (info.family === "IPv4" && !info.internal) {
+          return info.address;
+        }
+      }
+    }
+  }
+  return "127.0.0.1"; // Default to localhost if no external IP found
+}
