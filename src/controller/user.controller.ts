@@ -142,6 +142,7 @@ export const updateUser = CatchAsyncError(
           first_name: clerkUser.firstName,
           last_name: clerkUser.lastName,
           phone: clerkUser.unsafeMetadata.phoneNumber!,
+          ...(clerkUser.imageUrl && { profile_image_url: clerkUser.imageUrl }),
         },
       });
 
@@ -167,7 +168,7 @@ export const driverApproval = CatchAsyncError(
       if (user?.publicMetadata?.role !== "admin") {
         return next(new ErrorHandlers("Unauthorized", 403));
       }
-      
+
       const { driver_id, status, reason } = req.body;
       if (!driver_id || !status) {
         return next(new ErrorHandlers("Missing required fields", 400));

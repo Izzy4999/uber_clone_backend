@@ -1,5 +1,5 @@
 import { DefaultEventsMap, Server } from "socket.io";
-import http from "http";
+import http, { request } from "http";
 import { getDistance } from "@/libs";
 import prisma from "@/libs/prisma";
 
@@ -40,6 +40,12 @@ interface Ride {
   currentLang: number;
 }
 
+interface RideRequest {
+  lat: number;
+  long: number;
+  socketId: string;
+}
+
 export default function startSocket(
   server: http.Server<typeof http.IncomingMessage, typeof http.ServerResponse>
 ) {
@@ -53,6 +59,7 @@ export default function startSocket(
   // In-memory store for driver locations keyed by socket id
   let driverLocations: Record<string, MarkerData> = {};
   let userLocations: Record<string, UserLocation> = {};
+  let requests: Record<string, Ride> = {};
 
   io.on("connection", (socket) => {
     socket.on("driverLocationUpdate", async (data: DriverLocation) => {
@@ -90,6 +97,34 @@ export default function startSocket(
         io.to(user?.socketId!).emit("nearbyDrivers", nearbyDrivers); // Send only to that user
       });
 
+      console.log(requests);
+
+      for (const [requestSocketId, request] of Object.entries(requests)) {
+        const distance = getDistance(
+          data?.lat,
+          data?.lon,
+          request.currentLang,
+          request.currentLon
+        );
+
+        if (distance <= 5000) {
+          const user = await prisma.users.findFirst({
+            where: {
+              clerk_id: request.passengerId,
+            },
+          });
+
+          if (!user) {
+            return;
+          }
+          // 5km range
+          io.to(socket.id).emit("new-ride-request", {
+            message: "New Ride Request",
+            user: user,
+          });
+        }
+      }
+
       io.emit("driverLocation", data);
     });
 
@@ -105,8 +140,7 @@ export default function startSocket(
     });
 
     socket.on("rideRequest", async (data: Ride) => {
-      console.log(data);
-      console.log(driverLocations);
+      requests[socket.id] = data;
       const nearbyDrivers = getNearbyDrivers(
         {
           lon: data?.currentLon,
@@ -139,16 +173,62 @@ export default function startSocket(
         return;
       }
 
+      console.log(requests);
+
       sendEventToDrivers(
         sockets,
         "new-ride-request",
-        { message: "New Ride Request", user: user },
+        { message: "New Ride Request", request: { ...data, user } },
+        io
+      );
+      sendEventToDrivers(
+        sockets,
+        "update-ride-request",
+        { request: { ...data, user } },
         io
       );
     });
 
+    socket.on("get-ride-requests", async (data: RideRequest) => {
+      const requestList = [];
+      for (const [requestSocketId, request] of Object.entries(requests)) {
+        const distance = getDistance(
+          data?.lat,
+          data?.long,
+          request.currentLang,
+          request.currentLon
+        );
+
+        if (distance < 5000) {
+          const user = await prisma.users.findFirst({
+            where: { clerk_id: request.passengerId },
+          });
+
+          if (!user) {
+            return;
+          }
+          const requestData = {
+            ...request,
+            user,
+          };
+          requestList.push(requestData);
+        }
+      }
+
+      io.to(data?.socketId).emit("requestList", requestList);
+    });
+
+    socket.on("cancel-request", () => {
+      const ride = requests[socket.id];
+
+      io.emit("request-cancelled", { id: ride?.passengerId });
+      delete requests[socket.id];
+    });
+
     socket.on("disconnect", () => {
       delete driverLocations[socket.id];
+      delete userLocations[socket.id];
+      delete requests[socket.id];
       console.log("Client disconnected:", socket.id);
     });
   });
